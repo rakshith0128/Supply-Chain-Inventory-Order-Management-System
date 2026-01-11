@@ -6,7 +6,7 @@ import com.inventory.inventory_system.entity.Warehouse;
 import com.inventory.inventory_system.repository.InventoryRepository;
 import com.inventory.inventory_system.repository.ProductRepository;
 import com.inventory.inventory_system.repository.WarehouseRepository;
-
+import jakarta.persistence.OptimisticLockException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,19 +37,26 @@ public class InventoryService {
             throw new IllegalArgumentException("Quantity must be positive");
         }
 
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+        try {
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found"));
 
-        Warehouse warehouse = warehouseRepository.findById(warehouseId)
-                .orElseThrow(() -> new IllegalArgumentException("Warehouse not found"));
+            Warehouse warehouse = warehouseRepository.findById(warehouseId)
+                    .orElseThrow(() -> new IllegalArgumentException("Warehouse not found"));
 
-        Inventory inventory = inventoryRepository
-                .findByProductAndWarehouse(product, warehouse)
-                .orElse(new Inventory(product, warehouse, 0));
+            Inventory inventory = inventoryRepository
+                    .findByProductAndWarehouse(product, warehouse)
+                    .orElse(new Inventory(product, warehouse, 0));
 
-        inventory.setQuantity(inventory.getQuantity() + quantity);
+            inventory.setQuantity(inventory.getQuantity() + quantity);
 
-        return inventoryRepository.save(inventory);
+            return inventoryRepository.save(inventory);
+
+        } catch (OptimisticLockException e) {
+            throw new IllegalStateException(
+                    "Concurrent stock update detected. Please retry the operation."
+            );
+        }
     }
 
     /**
@@ -63,22 +70,29 @@ public class InventoryService {
             throw new IllegalArgumentException("Quantity must be positive");
         }
 
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+        try {
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new IllegalArgumentException("Product not found"));
 
-        Warehouse warehouse = warehouseRepository.findById(warehouseId)
-                .orElseThrow(() -> new IllegalArgumentException("Warehouse not found"));
+            Warehouse warehouse = warehouseRepository.findById(warehouseId)
+                    .orElseThrow(() -> new IllegalArgumentException("Warehouse not found"));
 
-        Inventory inventory = inventoryRepository
-                .findByProductAndWarehouse(product, warehouse)
-                .orElseThrow(() -> new IllegalStateException("Inventory record not found"));
+            Inventory inventory = inventoryRepository
+                    .findByProductAndWarehouse(product, warehouse)
+                    .orElseThrow(() -> new IllegalStateException("Inventory record not found"));
 
-        if (inventory.getQuantity() < quantity) {
-            throw new IllegalStateException("Insufficient stock");
+            if (inventory.getQuantity() < quantity) {
+                throw new IllegalStateException("Insufficient stock");
+            }
+
+            inventory.setQuantity(inventory.getQuantity() - quantity);
+
+            return inventoryRepository.save(inventory);
+
+        } catch (OptimisticLockException e) {
+            throw new IllegalStateException(
+                    "Concurrent order detected. Please retry the order."
+            );
         }
-
-        inventory.setQuantity(inventory.getQuantity() - quantity);
-
-        return inventoryRepository.save(inventory);
     }
 }

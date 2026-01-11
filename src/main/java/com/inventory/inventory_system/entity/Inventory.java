@@ -26,6 +26,9 @@ public class Inventory {
     @Column(nullable = false)
     private Integer quantity;
 
+    @Version
+    private Long version; // Optimistic locking for concurrency control
+
     public Inventory() {}
 
     public Inventory(Product product, Warehouse warehouse, Integer quantity) {
